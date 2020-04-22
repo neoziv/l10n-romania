@@ -1,7 +1,8 @@
 # Copyright (C) 2020 OdooERP România S.R.L.
 # License AGPL-3.0 or later (https://www.gnu.org/licenses/agpl.html).
 
-from odoo import api, models, fields
+from odoo import api, models, fields, _
+from odoo.exceptions import UserError, ValidationError
 
 
 class AccountCompensation(models.Model):
@@ -38,6 +39,18 @@ class AccountCompensation(models.Model):
         self.write({
             'state': 'done'
         })
+
+        val_error = ValidationError(_('The amount is... '))
+
+        total = sum(line.amount for line in self.line_ids)
+        if total != 0:
+            raise val_error
+
+        # for move_line in self.line_ids:
+        #     to_reconcile = move_line + self.move_line_ids.filtered(
+        #         lambda x: x.account_id == move_line.account_id
+        #     )
+        #     to_reconcile.reconcile()
 
     def action_draft(self):
         self.write({
@@ -137,3 +150,15 @@ class AccountCompensationLine(models.Model):
     amount_original = fields.Monetary(string='Original Amount')
     amount_residual = fields.Monetary(string='Residual Amount')
     amount = fields.Monetary(string='Amount')
+
+    @api.onchange('amount')
+    def onchange_amount(self):
+        val_error = ValidationError(_('The amount is bigger than amount residual'))
+        if self.amount_residual < 0:
+            if self.amount < self.amount_residual or self.amount > 0:
+                raise val_error
+        else:
+            if self.amount > self.amount_residual or self.amount < 0:
+                raise val_error
+
+
