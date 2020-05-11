@@ -18,16 +18,21 @@ class AccountCompensation(models.Model):
     journal_id = fields.Many2one(
         'account.journal', 'Journal', required=True, readonly=True
     )
+    notes = fields.Text(string='Notes', readonly=True)
     partner_id = fields.Many2one('res.partner', 'Partner', readonly=True)
     company_id = fields.Many2one(
         related='journal_id.company_id', readonly=True
     )
     currency_id = fields.Many2one(
-        'res.currency', 'Currency', required=True, readonly=True, default=_get_default_currency_id
+        'res.currency', 'Currency', required=True, readonly=True,
+        default=_get_default_currency_id
     )
     move_id = fields.Many2one('account.move', 'Account Entry', copy=False)
+    move_line_ids = fields.One2many(related='move_id.line_ids',
+                                    string='Journal Items', readonly=True)
     line_ids = fields.One2many(
-        'account.compensation.line', 'compensation_id', 'Compensation Lines', readonly=True
+        'account.compensation.line', 'compensation_id',
+        'Compensation Lines', readonly=True
     )
     state = fields.Selection([
         ('draft', 'Draft'),
@@ -35,22 +40,50 @@ class AccountCompensation(models.Model):
         ('cancel', 'Cancelled')
     ], default='draft')
 
+
     def action_done(self):
         self.write({
             'state': 'done'
         })
 
-        val_error = ValidationError(_('The amount is... '))
+        val_error = ValidationError(_(
+            'The total amount must be equal to zero'
+        ))
 
         total = sum(line.amount for line in self.line_ids)
         if total != 0:
             raise val_error
 
-        # for move_line in self.line_ids:
-        #     to_reconcile = move_line + self.move_line_ids.filtered(
-        #         lambda x: x.account_id == move_line.account_id
-        #     )
-        #     to_reconcile.reconcile()
+        self.ensure_one()
+        # Create account move
+        move_lines = []
+        move = self.env["account.move"].create(
+             {"ref": _("AR/AP netting"), "journal_id": self.journal_id.id}
+        )
+        self.move_id = move
+
+        for line in self.line_ids:
+            if line.amount != 0:
+                move_line_vals = {
+                    "credit": line.amount if line.amount > 0 else 0,
+                    "debit": abs(line.amount) if line.amount < 0 else 0,
+                    "partner_id": line.partner_id.id,
+                    "name": move.ref,
+                    "account_id": line.account_id.id,
+                    "move_id": move.id,
+                    "compensation_line_id": line.id,
+                }
+                move_lines.append((0, 0, move_line_vals))
+
+        if move_lines:
+            move.write({"line_ids": move_lines})
+
+        move.action_post()
+
+        # Make reconciliation
+        for line in move.line_ids:
+            to_reconcile = line + line.compensation_line_id.move_line_id
+            to_reconcile.reconcile()
 
     def action_draft(self):
         self.write({
@@ -153,12 +186,12 @@ class AccountCompensationLine(models.Model):
 
     @api.onchange('amount')
     def onchange_amount(self):
-        val_error = ValidationError(_('The amount is bigger than amount residual'))
+        val_error = ValidationError(_(
+            'The amount is bigger than amount residual'
+        ))
         if self.amount_residual < 0:
             if self.amount < self.amount_residual or self.amount > 0:
                 raise val_error
         else:
             if self.amount > self.amount_residual or self.amount < 0:
                 raise val_error
-
-
