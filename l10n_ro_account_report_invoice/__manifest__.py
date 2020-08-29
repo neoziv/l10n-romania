@@ -10,7 +10,7 @@
     "website": "https://odoo-community.org",
     "license": "AGPL-3",
     "installable": True,
-    "depends": ["l10n_ro_config", "account"],
+    "depends": ["l10n_ro_config"],
     "data": [
         "views/account_invoice_view.xml",
         "views/invoice_report.xml",
