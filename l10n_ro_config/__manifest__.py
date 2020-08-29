@@ -11,8 +11,9 @@
     "Forest and Biomass Romania,"
     "Odoo Community Association (OCA)",
     "website": "https://github.com/OCA/l10n-romania",
-    "depends": ["l10n_ro", "l10n_ro_partner_create_by_vat"],
+    "depends": ["l10n_ro", "base_vat"],
     "data": [
+        "views/res_partner_view.xml",
         "views/report_templates.xml",
         "views/res_config_view.xml",
         "views/res_bank_view.xml",

@@ -4,15 +4,12 @@
 
 from odoo import fields, models
 
-import odoo.addons.decimal_precision as dp
-
 
 class ResCompany(models.Model):
     _inherit = "res.company"
 
-    share_capital = fields.Float(
-        string="Share Capital", digits=dp.get_precision("Account"), default=200
-    )
+    share_capital = fields.Float(string="Share Capital", digits="Account", default=200)
+    company_registry = fields.Char(related="partner_id.nrc", readonly=False)
     property_stock_picking_payable_account_id = fields.Many2one(
         "account.account",
         string="Picking Account Payable",
